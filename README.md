@@ -38,7 +38,7 @@ $ time while read -r line; do mpdtags "$line" > /dev/null; done < processed.mpd.
 
 real	0m2.500s
 user	0m1.209s
-sys	0m0.900s
+sys	  0m0.900s
 1000 processed.mpd.log
 ```
 
