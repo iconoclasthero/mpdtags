@@ -268,12 +268,12 @@ int main(int argc, char **argv) {
 //                        printf("%s=", mpd_tag_name(t));
 //                        shellquote(v);
 //                        putchar('\n');
-        char *tag = strtolower(mpd_tag_name(t));  // lowercase copy
-        if (!tag) continue;                        // safety
-        printf("%s=", tag);                        // use lowercase
-        shellquote(v);
-        putchar('\n');
-        free(tag);                                 // free memory
+                        char *tag = strtolower(mpd_tag_name(t));   // lowercase copy
+                        if (!tag) continue;                        // safety
+                        printf("%s=", tag);                        // use lowercase
+                        shellquote(v);                             // shellquote RHS
+                        putchar('\n');                             // new line
+                        free(tag);                                 // free memory
                     }
                 }
 
@@ -325,12 +325,12 @@ int main(int argc, char **argv) {
 //                                printf("%s=", mpd_tag_name(t));
 //                                shellquote(v);
 //                                putchar('\n');
-        char *tag = strtolower(mpd_tag_name(t));  // lowercase copy
-        if (!tag) continue;                        // safety
-        printf("%s=", tag);                        // use lowercase
-        shellquote(v);
-        putchar('\n');
-        free(tag);                                 // free memory
+                                char *tag = strtolower(mpd_tag_name(t));   // lowercase copy
+                                if (!tag) continue;                        // safety
+                                printf("%s=", tag);                        // use lowercase
+                                shellquote(v);                             // shellquote RHS
+                                putchar('\n');                             // new line
+                                free(tag);                                 // free memory
                             }
                         }
 
@@ -391,12 +391,12 @@ int main(int argc, char **argv) {
 //                printf("%s=", mpd_tag_name(t));
 //                shellquote(v);
 //                putchar('\n');
-        char *tag = strtolower(mpd_tag_name(t));  // lowercase copy
-        if (!tag) continue;                        // safety
-        printf("%s=", tag);                        // use lowercase
-        shellquote(v);
-        putchar('\n');
-        free(tag);                                 // free memory
+                char *tag = strtolower(mpd_tag_name(t));   // lowercase copy
+                if (!tag) continue;                        // safety
+                printf("%s=", tag);                        // use lowercase
+                shellquote(v);                             // shellquote RHS
+                putchar('\n');                             // new line
+                free(tag);                                 // free memory
             }
         }
 

@@ -23,11 +23,11 @@ facility to specify a socket path.
 
 ## Rationale
 
-Ever wanted to use your database that MPD keeps for your music collection to retrieve metadata tags for music in your library? This allows you to use that database and thus obviates the need to keep a second, synched database of your music collection. On obvious caveat to note here is that have been intentionally excluded from the MPD database through `.mpdignore` files won't be in the database. 
+Ever wanted to use the database that MPD keeps for your music collection to retrieve metadata tags for your music in your library? This allows you to use that database and thus obviates the need to keep a second, synchronized database of your music collection. One obvious caveat to note is that files intentionally excluded from the MPD database via `.mpdignore` files will not be present _in the database._
 
-MPD still has a facility to read from any local file given an absolute path, but is prohibited from doing so over TCP (e.g., from a remote connection) so a UNIX domain socket connection must be used. The `libmpdclient` attempts (and uses) the TCP connection preferentially if `MPD_HOST`/`MPD_PORT` environmental variables are set and will thus error out.
+However, MPD has the ability to read from any local file (including ignored files) given an absolute path, but it is prohibited from doing so over TCP (e.g., from a remote connection), so a UNIX domain socket connection must be used. `libmpdclient` will preferentially attempt to use a TCP connection if the `MPD_HOST` and `MPD_PORT` environment variables are set, and will error out in this case.
 
-If a UNIX domain socket exists, `mpdtags` will attempt to reach the socket automatically if it recieves an error from MPD (`exception: Access to local files via TCP is not allowed`). If known in advance that mpd will be trying to retrieve an absolute path (regardless of presence in the database), `--local` or `--socket` can be used. With the latter, you can spefify a socket path as necessary: `--socket=/var/run/mpd/socket`.
+If a UNIX domain socket exists, `mpdtags` will automatically attempt to connect via the socket if it receives an error from MPD (specifically: `Access to local files via TCP is not allowed`). If it is known in advance that MPD will be asked to retrieve metadata for an absolute path (regardless of whether it exists in the database), the `--local` or `--socket` options can be used. With --socket, a socket path may be specified explicitly, for example: `--socket=/var/run/mpd/socket`.
 
 ## Usage examples
 
