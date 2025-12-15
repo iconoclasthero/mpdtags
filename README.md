@@ -14,6 +14,7 @@ A small utility to fetch MPD song metadata, with optional socket fallback for lo
   --next           : Return info on the next song
   --status         : Return the MPD status information
   --help           : Display this message
+  --version        : Display version info
 
 **By default MPD will use the MPD_HOST and MPD_PORT environmental variables to connect via TCP
 but disallows reading of local files over TCP. mpdtags will automatically try to use a domain
@@ -23,62 +24,56 @@ facility to specify a socket path.
 
 ## Rationale
 
-Ever wanted to use the database that MPD keeps for your music collection to retrieve metadata tags for your music in your library? This allows you to use that database and thus obviates the need to keep a second, synchronized database of your music collection. One obvious caveat to note is that files intentionally excluded from the MPD database via `.mpdignore` files will not be present _in the database._
+Ever wanted to use the database that MPD keeps for your music collection to **quickly** retrieve metadata tags for your music in your library? This allows you to use that database and thus obviates the need to keep a second, synchronized database of your music collection. One obvious caveat to note is that files intentionally excluded from the MPD database via `.mpdignore` files will not be present _in the database._
 
 However, MPD has the ability to read from any local file (including ignored files) given an absolute path, but it is prohibited from doing so over TCP (e.g., from a remote connection), so a UNIX domain socket connection must be used. `libmpdclient` will preferentially attempt to use a TCP connection if the `MPD_HOST` and `MPD_PORT` environment variables are set, and will error out in this case.
 
 If a UNIX domain socket exists, `mpdtags` will automatically attempt to connect via the socket if it receives an error from MPD (specifically: `Access to local files via TCP is not allowed`). If it is known in advance that MPD will be asked to retrieve metadata for an absolute path (regardless of whether it exists in the database), the `--local` or `--socket` options can be used. With --socket, a socket path may be specified explicitly, for example: `--socket=/var/run/mpd/socket`.
-
 ## Usage examples
 
-### Retrieve information on the last song played from the log:
+### Retrieve information on the last song played from the log (uses relative path):
 ```
 $ mpdtags "$(last="$(grep 'player: played' /var/log/mpd/mpd.log|tail -n1)"; last="${last%\"}"; last="${last#*\"}"; echo "$last")"
-file='Blackberry Smoke/Blackberry Smoke -- The Whippoorwill (2012)/Blackberry Smoke -- 01-05 - Ain'\''t Much Left of Me.flac'
-Artist='Blackberry Smoke'
-Album='The Whippoorwill'
-AlbumArtist='Blackberry Smoke'
-Title='Ain'\''t Much Left of Me'
-Track='5'
-Genre='Country'
-Date='2012'
-Disc='1'
-MUSICBRAINZ_ARTISTID='1576a26e-f77d-47ac-87f2-4f610c141ac6'
-MUSICBRAINZ_ALBUMID='ad78fa13-a47b-4431-a3f3-d6614c080dcb'
-MUSICBRAINZ_ALBUMARTISTID='1576a26e-f77d-47ac-87f2-4f610c141ac6'
-MUSICBRAINZ_TRACKID='552ad0a1-1af9-426d-84a7-2fd058c84412'
-MUSICBRAINZ_RELEASETRACKID='a3ec0db0-0b5f-4b06-af8d-7acfaf6f07c7'
-OriginalDate='2012-08-14'
-ArtistSort='Blackberry Smoke'
-AlbumArtistSort='Blackberry Smoke'
-Label='Southern Ground'
-MUSICBRAINZ_RELEASEGROUPID='514a7c52-82e1-41bf-b270-adefb2bd5c6c'
-time=299
+file='Bob Dylan/Various Artists/Various Artists -- Nobody Sings Dylan Like Dylan, Volume 30: Time Is the Enemy/01-13 - Don Henley -- Well Well Well [1993-09-06: The Walden Woods Benefit, Foxborough Stadium, Foxborough, MA].flac'
+artist='Don Henley'
+album='Nobody Sings Dylan Like Dylan, Volume 30: Time Is the Enemy'
+albumartist='Various Artists'
+title='Well Well Well [1993-09-06: The Walden Woods Benefit, Foxborough Stadium, Foxborough, MA]'
+track='13'
+genre='Folk, Pop Rock, Rock'
+disc='1'
+musicbrainz_artistid='b2c2d4fe-8c1e-44ec-8be6-ff500e105a90'
+musicbrainz_albumid='779f282a-3c85-4f03-8e6c-5acf803660e9'
+musicbrainz_albumartistid='89ad4ac3-39f7-470e-963a-56509c546377'
+musicbrainz_trackid='1d6b580e-98a5-476c-95b6-0dd4e1a7fd2a'
+musicbrainz_releasetrackid='0cba8888-1c52-4020-b164-a02d2e78ab96'
+artistsort='Henley, Don'
+albumartistsort='Various Artists'
+musicbrainz_releasegroupid='08c02a79-e3a7-438d-85da-f906e111e8d6'
+time=238
 ```
 
 ### Retrieve tags of current song:
 ```
-$ mpdtags --current
-file='Todd Snider/Todd Snider -- Live: Return of the Storyteller (2022) (mp3)/Todd Snider -- 01-05 - Play a Train Song.mp3'
-Artist='Todd Snider'
-Album='Live: Return of the Storyteller (mp3)'
-AlbumArtist='Todd Snider'
-Title='Play a Train Song'
-Track='5'
-Genre='Alternative Country, Americana, Folk; Americana; Country Music'
-Date='2022-09-23'
-Disc='1'
-MUSICBRAINZ_ARTISTID='25c13ec7-fad4-4da4-8d98-9607ff615d68'
-MUSICBRAINZ_ALBUMID='0fa7a8f3-d4e7-495d-a362-0d9db4afcba1'
-MUSICBRAINZ_ALBUMARTISTID='25c13ec7-fad4-4da4-8d98-9607ff615d68'
-MUSICBRAINZ_TRACKID='0c9848d8-fbd1-4280-b3c2-b1fc288e2b30'
-MUSICBRAINZ_RELEASETRACKID='02f403f1-ec4e-4dbc-bce6-04ede53cc094'
-OriginalDate='2022'
-ArtistSort='Snider, Todd'
-AlbumArtistSort='Snider, Todd'
-Label='Aimless Records'
-MUSICBRAINZ_RELEASEGROUPID='0b0b138b-f4f0-4601-8594-2983af19eaf5'
-time=229
+file='92-folk/Woody Guthrie/Woody Guthrie -- The Asch Recordings, Volumes 1-4 (1999)/Woody Guthrie -- 04-20 - Fastest of Ponies.flac'
+artist='Woody Guthrie'
+album='The Asch Recordings, Volumes 1-4'
+albumartist='Woody Guthrie'
+title='Fastest of Ponies'
+track='20'
+date='1999-08-17'
+disc='4'
+musicbrainz_artistid='cbd827e1-4e38-427e-a436-642683433732'
+musicbrainz_albumid='49f81484-0c30-4921-8ebb-3bc1478660a0'
+musicbrainz_albumartistid='cbd827e1-4e38-427e-a436-642683433732'
+musicbrainz_trackid='7269be97-fe2c-44d6-bde2-687dfb6f99e9'
+musicbrainz_releasetrackid='359647c2-b044-3996-8409-02815b2b5266'
+originaldate='1999-08-17'
+artistsort='Guthrie, Woody'
+albumartistsort='Guthrie, Woody'
+label='Smithsonian Folkways'
+musicbrainz_releasegroupid='24265bdb-727a-3241-8fd7-1b191f5269b4'
+time=258
 ```
 
 ### Retrieve "status" information
@@ -111,27 +106,26 @@ nextsongid: 962
 
 ```
 $ mpdtags --next --status
-file='Willie Nelson/Willie Nelson -- Milk Cow Blues (2000)/Willie Nelson -- 01-06 - Crazy (feat. Susan Tedeschi).flac'
-Artist='Willie Nelson'
-Album='Milk Cow Blues'
-AlbumArtist='Willie Nelson'
-Title='Crazy (feat. Susan Tedeschi)'
-Track='6'
-Date='2000'
-Disc='1'
-MUSICBRAINZ_ARTISTID='668fd73c-bf54-4310-a139-305517f05311'
-MUSICBRAINZ_ARTISTID='deabe097-2a03-49ce-9ae3-c9645bc778c7'
-MUSICBRAINZ_ALBUMID='a0383301-ab5e-4f2e-b65c-5f594678916f'
-MUSICBRAINZ_ALBUMARTISTID='668fd73c-bf54-4310-a139-305517f05311'
-MUSICBRAINZ_TRACKID='41de9a80-105b-4e75-aac5-3008264d4978'
-MUSICBRAINZ_RELEASETRACKID='331610e3-fb3e-32c7-b3fd-d76a65d6997c'
-OriginalDate='2000-09-19'
-ArtistSort='Nelson, Willie'
-AlbumArtistSort='Nelson, Willie'
-Label='Island Def Jam Music Group'
-Label='Universal Music International Division'
-MUSICBRAINZ_RELEASEGROUPID='fef9c612-97d7-30a9-acca-b4ab3594f633'
-time=256
+file='Bob Dylan/Bob Dylan -- The Bootleg Series, Volume 07: No Direction Home - The Soundtrack (2005)/Bob Dylan -- 01-03 - This Land Is Your Land (live).flac'
+artist='Bob Dylan'
+album='The Bootleg Series, Volume 07:  No Direction Home - The Soundtrack'
+albumartist='Bob Dylan'
+title='This Land Is Your Land (live)'
+track='3'
+date='2010-12-13'
+disc='1'
+musicbrainz_artistid='72c536dc-7137-4477-a521-567eeb840fa8'
+musicbrainz_albumid='45b7f41b-5a14-409a-a90a-4ec24d8c8cf7'
+musicbrainz_albumartistid='72c536dc-7137-4477-a521-567eeb840fa8'
+musicbrainz_trackid='bad234c5-79f9-4a05-81c3-533566da925b'
+musicbrainz_releasetrackid='e63778e4-045f-415f-8dee-1c7e617fb9b7'
+originaldate='2005-08-30'
+artistsort='Dylan, Bob'
+albumartistsort='Dylan, Bob'
+label='Columbia'
+label='Legacy'
+musicbrainz_releasegroupid='3d1e0f14-a3c3-3107-9884-c900aa7f6a08'
+time=358
 
 volume: 100
 repeat: 1
@@ -145,48 +139,47 @@ mixrampdb: -17
 state: play
 lastloadedplaylist: 
 mixrampdelay: 5
-song: 961
-songid: 962
-time: 1:256
-elapsed: 0.752
-bitrate: 648
-duration: 256.160
+song: 48751
+songid: 48752
+time: 241:258
+elapsed: 240.938
+bitrate: 375
+duration: 258.200
 audio: 44100:16:2
-nextsong: 45568
-nextsongid: 45569
+nextsong: 3353
+nextsongid: 3354
 ```
 
-### Retrieve tags of an absolute path with a defined MPD UNIX domain socket:
+### Retrieve tags of an **absolute path** with a defined MPD UNIX domain socket:
 ```
 $ mpdtags /library/music/Grateful\ Dead/Grateful\ Dead\ --\ Without\ a\ Net\ \(1990\)/Grateful\ Dead\ --\ 02-01\ -\ China\ Cat\ Sunflower\ \>\ I\ Know\ You\ Rider.flac --socket=/var/run/mpd/socket 
-file='/library/music/Grateful Dead/Grateful Dead -- Without a Net (1990)/Grateful Dead -- 02-01 - China Cat Sunflower > I Know You Rider.flac'
-Artist='Grateful Dead'
-Album='Without a Net'
-AlbumArtist='Grateful Dead'
-Title='China Cat Sunflower / I Know You Rider'
-Track='1'
-Date='1990-09'
-Performer='Jerry Garcia (guitar)'
-Performer='Bob Weir (guitar)'
-Performer='Mickey Hart (drums (drum set))'
-Performer='Bill Kreutzmann (drums (drum set))'
-Performer='Phil Lesh (electric bass guitar)'
-Performer='Brent Mydland (keyboard)'
-Performer='Jerry Garcia (vocals)'
-Performer='Phil Lesh (vocals)'
-Performer='Brent Mydland (vocals)'
-Performer='Bob Weir (vocals)'
-Disc='2'
-MUSICBRAINZ_ARTISTID='6faa7ca7-0d99-4a5e-bfa6-1fd5037520c6'
-MUSICBRAINZ_ALBUMID='a9ef2528-9b35-4014-9ba1-7a44a6f81173'
-MUSICBRAINZ_ALBUMARTISTID='6faa7ca7-0d99-4a5e-bfa6-1fd5037520c6'
-MUSICBRAINZ_TRACKID='ff6285b0-6c3a-49e4-89c9-33d8fa7e72ed'
-MUSICBRAINZ_RELEASETRACKID='424cafac-c9b4-3889-b79d-5151a3241f39'
-OriginalDate='1990-09'
-ArtistSort='Grateful Dead'
-AlbumArtistSort='Grateful Dead'
-Label='Arista'
-MUSICBRAINZ_RELEASEGROUPID='3dbc9bfb-653c-3333-8e8a-3a12c0e7238a'
+artist='Grateful Dead'
+album='Without a Net'
+albumartist='Grateful Dead'
+title='China Cat Sunflower / I Know You Rider'
+track='1'
+date='1990-09'
+performer='Jerry Garcia (guitar)'
+performer='Bob Weir (guitar)'
+performer='Mickey Hart (drums (drum set))'
+performer='Bill Kreutzmann (drums (drum set))'
+performer='Phil Lesh (electric bass guitar)'
+performer='Brent Mydland (keyboard)'
+performer='Jerry Garcia (vocals)'
+performer='Phil Lesh (vocals)'
+performer='Brent Mydland (vocals)'
+performer='Bob Weir (vocals)'
+disc='2'
+musicbrainz_artistid='6faa7ca7-0d99-4a5e-bfa6-1fd5037520c6'
+musicbrainz_albumid='a9ef2528-9b35-4014-9ba1-7a44a6f81173'
+musicbrainz_albumartistid='6faa7ca7-0d99-4a5e-bfa6-1fd5037520c6'
+musicbrainz_trackid='ff6285b0-6c3a-49e4-89c9-33d8fa7e72ed'
+musicbrainz_releasetrackid='424cafac-c9b4-3889-b79d-5151a3241f39'
+originaldate='1990-09'
+artistsort='Grateful Dead'
+albumartistsort='Grateful Dead'
+label='Arista'
+musicbrainz_releasegroupid='3dbc9bfb-653c-3333-8e8a-3a12c0e7238a'
 time=624
 ```
 
