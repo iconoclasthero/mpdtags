@@ -36,10 +36,10 @@ If a UNIX domain socket exists, `mpdtags` will automatically attempt to connect 
 ```
 $ time while read -r line; do mpdtags "$line" > /dev/null; done < processed.mpd.log; wc -l processed.mpd.log
 
-real	0m2.500s
-user	0m1.209s
-sys	  0m0.900s
-1000 processed.mpd.log
+real  0m2.500s
+user  0m1.209s
+sys   0m0.900s
+1000  processed.mpd.log
 ```
 
 
