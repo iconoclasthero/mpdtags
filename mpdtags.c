@@ -1,9 +1,11 @@
+#define MPDTAGS_VERSION "0.1.1"
 #include <mpd/client.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <ctype.h>
 
 /* minimal shellquote */
 static void shellquote(const char *s) {
@@ -29,6 +31,7 @@ struct opts {
     bool current;
     bool next;
     bool status;
+    bool show_version;
 };
 
 ///* state string */
@@ -88,6 +91,8 @@ static void parse_flags(int argc, char **argv, struct opts *o) {
             o->local = true;
         } else if (!strcmp(arg, "--help")) {
             o->show_help = true;
+        } else if (!strcmp(arg, "--version")) {
+            o->show_version = true;
         } else if (!strcmp(arg, "--current")) {
             o->current = true;
             o->path = NULL;
@@ -117,6 +122,7 @@ static void print_help(void) {
         "  --next           : Return info on the next song\n"
         "  --status         : Return the MPD status information\n"
         "  --help           : Display this message\n"
+        "  --version        : Display version and exit\n"
         "\n"
         "**By default MPD will use the MPD_HOST and MPD_PORT environmental variables to connect via TCP\n"
         "but disallows reading of local files over TCP. mpdtags will automatically try to use a domain\n"
@@ -158,12 +164,26 @@ static struct mpd_connection *connect_mpd(struct opts *o) {
     return c;
 }
 
+/* return a lowercase copy of a string; caller must free */
+char *strtolower(const char *s) {
+    char *res = strdup(s);
+    if (!res) return NULL;
+    for (char *p = res; *p; p++)
+        *p = tolower((unsigned char)*p);
+    return res;
+}
+
 int main(int argc, char **argv) {
     struct opts o = {0};
     parse_flags(argc, argv, &o);
 
     if (o.show_help) {
         print_help();
+        return 0;
+    }
+
+    if (o.show_version) {
+        printf("mpdtags %s\n", MPDTAGS_VERSION);
         return 0;
     }
 
@@ -245,9 +265,15 @@ int main(int argc, char **argv) {
                 for (int t = 0; t < MPD_TAG_COUNT; t++) {
                     const char *v;
                     for (unsigned i = 0; (v = mpd_song_get_tag(s, t, i)); i++) {
-                        printf("%s=", mpd_tag_name(t));
-                        shellquote(v);
-                        putchar('\n');
+//                        printf("%s=", mpd_tag_name(t));
+//                        shellquote(v);
+//                        putchar('\n');
+        char *tag = strtolower(mpd_tag_name(t));  // lowercase copy
+        if (!tag) continue;                        // safety
+        printf("%s=", tag);                        // use lowercase
+        shellquote(v);
+        putchar('\n');
+        free(tag);                                 // free memory
                     }
                 }
 
@@ -296,9 +322,15 @@ int main(int argc, char **argv) {
                         for (int t = 0; t < MPD_TAG_COUNT; t++) {
                             const char *v;
                             for (unsigned i = 0; (v = mpd_song_get_tag(s, t, i)); i++) {
-                                printf("%s=", mpd_tag_name(t));
-                                shellquote(v);
-                                putchar('\n');
+//                                printf("%s=", mpd_tag_name(t));
+//                                shellquote(v);
+//                                putchar('\n');
+        char *tag = strtolower(mpd_tag_name(t));  // lowercase copy
+        if (!tag) continue;                        // safety
+        printf("%s=", tag);                        // use lowercase
+        shellquote(v);
+        putchar('\n');
+        free(tag);                                 // free memory
                             }
                         }
 
@@ -356,9 +388,15 @@ int main(int argc, char **argv) {
         for (int t = 0; t < MPD_TAG_COUNT; t++) {
             const char *v;
             for (unsigned i = 0; (v = mpd_song_get_tag(song, t, i)); i++) {
-                printf("%s=", mpd_tag_name(t));
-                shellquote(v);
-                putchar('\n');
+//                printf("%s=", mpd_tag_name(t));
+//                shellquote(v);
+//                putchar('\n');
+        char *tag = strtolower(mpd_tag_name(t));  // lowercase copy
+        if (!tag) continue;                        // safety
+        printf("%s=", tag);                        // use lowercase
+        shellquote(v);
+        putchar('\n');
+        free(tag);                                 // free memory
             }
         }
 
