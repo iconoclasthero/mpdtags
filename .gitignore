@@ -2,3 +2,4 @@ libmpdclient/
 workfiles/
 mpdtags-static
 build/
+mkstatic

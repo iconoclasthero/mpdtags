@@ -29,6 +29,20 @@ Ever wanted to use the database that MPD keeps for your music collection to **qu
 However, MPD has the ability to read from any local file (including ignored files) given an absolute path, but it is prohibited from doing so over TCP (e.g., from a remote connection), so a UNIX domain socket connection must be used. `libmpdclient` will preferentially attempt to use a TCP connection if the `MPD_HOST` and `MPD_PORT` environment variables are set, and will error out in this case.
 
 If a UNIX domain socket exists, `mpdtags` will automatically attempt to connect via the socket if it receives an error from MPD (specifically: `Access to local files via TCP is not allowed`). If it is known in advance that MPD will be asked to retrieve metadata for an absolute path (regardless of whether it exists in the database), the `--local` or `--socket` options can be used. With --socket, a socket path may be specified explicitly, for example: `--socket=/var/run/mpd/socket`.
+## Notes
+
+- A static build exists in the release section that does not require `libmpdclient` to be installed.
+- Speed is relative, but it takes about 2.5 seconds to retrieve the metadata from 1000 songs preprocessed from a log of random playback:
+```
+$ time while read -r line; do mpdtags "$line" > /dev/null; done < processed.mpd.log; wc -l processed.mpd.log
+
+real	0m2.500s
+user	0m1.209s
+sys	0m0.900s
+1000 processed.mpd.log
+```
+
+
 ## Usage examples
 
 ### Retrieve information on the last song played from the log (uses relative path):
