@@ -5,16 +5,18 @@ A small utility to fetch MPD song metadata, with optional socket fallback for lo
 ## Usage
 
 ```
- mpdtags [options] <path>
+usage: mpdtags [options] <path>
   --host=HOST      : Specify the host URL/IP address for MPD
   --port=PORT      : Specify the host port for MPD
   --socket[=/path] : Force domain socket connection regardless of env variables**
   --local          : Specify <path> is a local file (for which TCP is prohibited)**
   --current        : Return info on the current song
   --next           : Return info on the next song
+  --last[=/path]   : Return info on the last song in log; defaults to /var/log/mpd/mpd.log
+                   : Use --last=/path/to/mpd.log or set MPD_LOG variable for alternate log path
   --status         : Return the MPD status information
   --help           : Display this message
-  --version        : Display version info
+  --version        : Display version and exit
 
 **By default MPD will use the MPD_HOST and MPD_PORT environmental variables to connect via TCP
 but disallows reading of local files over TCP. mpdtags will automatically try to use a domain
