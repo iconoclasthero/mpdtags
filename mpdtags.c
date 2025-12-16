@@ -1,4 +1,5 @@
 #define MPDTAGS_VERSION "0.1.1"
+#define DEFAULT_MPD_LOG "/var/log/mpd/mpd.log"
 #include <mpd/client.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,6 +33,8 @@ struct opts {
     bool next;
     bool status;
     bool show_version;
+    bool last;
+    const char *logpath;
 };
 
 ///* state string */
@@ -43,6 +46,37 @@ struct opts {
 //        default:              return "unknown";
 //    }
 //}
+
+static char *find_last_played(const char *logpath)
+{
+    FILE *fp = fopen(logpath, "r");
+    if (!fp)
+        return NULL;
+
+    char *line = NULL;
+    size_t len = 0;
+    char *last = NULL;
+
+    while (getline(&line, &len, fp) != -1) {
+        const char *p = strstr(line, "player: played \"");
+        if (!p)
+            continue;
+
+        const char *start = strchr(p, '"');
+        const char *end   = start ? strrchr(start + 1, '"') : NULL;
+        if (!start || !end || end <= start + 1)
+            continue;
+
+        free(last);
+        last = strndup(start + 1, end - start - 1);
+    }
+
+    free(line);
+    fclose(fp);
+    return last;
+}
+
+
 
 /* resolve socket */
 static const char *resolve_socket(void) {
@@ -110,6 +144,7 @@ static void parse_flags(int argc, char **argv, struct opts *o) {
     }
 }
 
+
 /* help */
 static void print_help(void) {
     puts(
@@ -176,6 +211,18 @@ char *strtolower(const char *s) {
 int main(int argc, char **argv) {
     struct opts o = {0};
     parse_flags(argc, argv, &o);
+
+    if (o.last) {
+        char *p = find_last_played(o.logpath);
+        if (!p) {
+            fprintf(stderr,
+                    "mpdtags: unable to determine last played song from %s\n",
+                    o.logpath);
+            return 1;
+        }
+        o.path = p;
+    }
+
 
     if (o.show_help) {
         print_help();
@@ -429,6 +476,11 @@ int main(int argc, char **argv) {
 out:
     if (song) mpd_song_free(song);
     if (st) mpd_status_free(st);
+
+    /* free path only if we allocated it via --last */
+    if (o.last && o.path)
+        free((char *)o.path);
+
     mpd_connection_free(c);
     return 0;
 }
