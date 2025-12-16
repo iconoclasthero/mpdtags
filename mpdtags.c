@@ -1,4 +1,4 @@
-#define MPDTAGS_VERSION "0.1.1"
+#define MPDTAGS_VERSION "0.1.2"
 #define DEFAULT_MPD_LOG "/var/log/mpd/mpd.log"
 #include <mpd/client.h>
 #include <stdio.h>
@@ -47,34 +47,132 @@ struct opts {
 //    }
 //}
 
+//static char *find_last_played(const char *logpath)
+//{
+//    fprintf(stderr, "DBG: opening logpath: %s\n", logpath);
+//
+//    FILE *fp = fopen(logpath, "r");
+//    if (!fp) {
+//        perror("DBG: fopen failed");
+//        return NULL;
+//    }
+//
+//    char *line = NULL;
+//    size_t len = 0;
+//    char *last = NULL;
+//    ssize_t n;
+//
+//    while ((n = getline(&line, &len, fp)) != -1) {
+//        /* trim trailing newline for cleaner logging */
+//        if (n > 0 && line[n - 1] == '\n')
+//            line[n - 1] = '\0';
+//
+//        const char *p = strstr(line, "player: played \"");
+//        if (!p)
+//            continue;
+//
+//        fprintf(stderr, "DBG: matched line: %s\n", line);
+//
+//        const char *start = strchr(p, '"');
+//        const char *end   = start ? strrchr(start + 1, '"') : NULL;
+//
+//        if (!start || !end || end <= start + 1) {
+//            fprintf(stderr, "DBG: quote parse failed\n");
+//            continue;
+//        }
+//
+//        char *path = strndup(start + 1, end - start - 1);
+//        if (!path) {
+//            fprintf(stderr, "DBG: strndup failed\n");
+//            continue;
+//        }
+//
+//        fprintf(stderr, "DBG: extracted path: %s\n", path);
+//
+//        free(last);
+//        last = path;
+//    }
+//
+//    free(line);
+//    fclose(fp);
+//
+//    if (last)
+//        fprintf(stderr, "DBG: returning last path: %s\n", last);
+//    else
+//        fprintf(stderr, "DBG: no played entries found\n");
+//
+//    return last;
+//}
+
 static char *find_last_played(const char *logpath)
 {
+    fprintf(stderr, "DBG: opening logpath: %s\n", logpath);
+
     FILE *fp = fopen(logpath, "r");
-    if (!fp)
+    if (!fp) {
+        perror("DBG: fopen failed");
         return NULL;
-
-    char *line = NULL;
-    size_t len = 0;
-    char *last = NULL;
-
-    while (getline(&line, &len, fp) != -1) {
-        const char *p = strstr(line, "player: played \"");
-        if (!p)
-            continue;
-
-        const char *start = strchr(p, '"');
-        const char *end   = start ? strrchr(start + 1, '"') : NULL;
-        if (!start || !end || end <= start + 1)
-            continue;
-
-        free(last);
-        last = strndup(start + 1, end - start - 1);
     }
 
-    free(line);
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        perror("DBG: fseek end failed");
+        fclose(fp);
+        return NULL;
+    }
+
+    long pos = ftell(fp);
+    if (pos <= 0) {
+        fclose(fp);
+        return NULL;
+    }
+
+    char buf[8192];
+    size_t idx = 0;
+
+    while (pos > 0) {
+        pos--;
+        if (fseek(fp, pos, SEEK_SET) != 0)
+            break;
+
+        int c = fgetc(fp);
+        if (c == '\n' || pos == 0) {
+            if (idx == 0)
+                continue;
+
+            buf[idx] = '\0';
+            idx = 0;
+
+            /* reverse buffer into line */
+            for (size_t i = 0, j = strlen(buf) - 1; i < j; i++, j--) {
+                char tmp = buf[i];
+                buf[i] = buf[j];
+                buf[j] = tmp;
+            }
+
+            if (strstr(buf, "player: played \"")) {
+                fprintf(stderr, "DBG: matched line: %s\n", buf);
+
+                char *start = strchr(buf, '"');
+                char *end   = start ? strrchr(start + 1, '"') : NULL;
+                if (start && end && end > start + 1) {
+                    char *out = strndup(start + 1, end - start - 1);
+                    fprintf(stderr, "DBG: extracted path: %s\n", out);
+                    fclose(fp);
+                    return out;
+                }
+            }
+            continue;
+        }
+
+        if (idx < sizeof(buf) - 1)
+            buf[idx++] = (char)c;
+    }
+
     fclose(fp);
-    return last;
+    fprintf(stderr, "DBG: no played entry found\n");
+    return NULL;
 }
+
 
 
 
@@ -133,6 +231,17 @@ static void parse_flags(int argc, char **argv, struct opts *o) {
         } else if (!strcmp(arg, "--next")) {
             o->next = true;
             o->path = NULL;
+				} else if (strncmp(argv[i], "--last", 6) == 0) {
+				    o->last = true;
+				    if (argv[i][6] == '=') {          // --last=/path/to/log
+				        o->logpath = argv[i] + 7;     // skip "--last="
+				    } else {
+				        o->logpath = NULL;            // will use default later
+				    }
+
+//        } else if (!strcmp(arg, "--last")) {
+//            o->last = true;
+//            o->path = NULL;
         } else if (!strcmp(arg, "--status")) {
             o->status = true;
         } else if (!o->path) {
@@ -155,6 +264,8 @@ static void print_help(void) {
         "  --local          : Specify <path> is a local file (for which TCP is prohibited)**\n"
         "  --current        : Return info on the current song\n"
         "  --next           : Return info on the next song\n"
+        "  --last[=/path]   : Return info on the last song in log; defaults to /var/log/mpd/mpd.log\n"
+        "                   : Use --last=/path/to/mpd.log or set MPD_LOG variable for alternate log path\n"
         "  --status         : Return the MPD status information\n"
         "  --help           : Display this message\n"
         "  --version        : Display version and exit\n"
@@ -212,17 +323,30 @@ int main(int argc, char **argv) {
     struct opts o = {0};
     parse_flags(argc, argv, &o);
 
-    if (o.last) {
-        char *p = find_last_played(o.logpath);
-        if (!p) {
-            fprintf(stderr,
-                    "mpdtags: unable to determine last played song from %s\n",
-                    o.logpath);
-            return 1;
-        }
-        o.path = p;
-    }
+//		if (o.last) {
+//		    const char *logpath = o.logpath ? o.logpath : DEFAULT_MPD_LOG;
+//
+//		    char *p = find_last_played(logpath);
+//		    if (!p) {
+//		        fprintf(stderr,
+//		                "mpdtags: unable to determine last played song from %s\n",
+//		                logpath);
+//		        return 1;
+//		    }
+//
+//		    o.path = p;
+//		}
+if (o.last) {
+    const char *logpath =
+        o.logpath ? o.logpath : getenv("MPD_LOG") ? getenv("MPD_LOG") : DEFAULT_MPD_LOG;
 
+    char *p = find_last_played(logpath);
+    if (!p) {
+        fprintf(stderr, "mpdtags: unable to determine last played song from %s\n", logpath);
+        return 1;
+    }
+    o.path = p;
+}
 
     if (o.show_help) {
         print_help();
