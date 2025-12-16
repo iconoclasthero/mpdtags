@@ -34,7 +34,7 @@ If a UNIX domain socket exists, `mpdtags` will automatically attempt to connect 
 ## Notes
 
 - A static build exists in the release section that does not require `libmpdclient` to be installed.
-- Last requires first reading the last song played from the mpd log and thus logging must be enabled via mpd's configuration file. `mpdtags` uses `/var/log/mpd/mpd.log` as the default location; alternate locations may be specified by using either `mpdtags --last=/path/to/mpd.log` or using the `MPD_LOG=/path/to/mpd.log` variable either on the CLI or as an environmental variable (e.g., `export MPD_LOG=/path/to/mpd.log`)
+- The --last song flag requires first reading the last song played from the mpd log and thus logging must be enabled via mpd's configuration file. `mpdtags` uses `/var/log/mpd/mpd.log` as the default location; alternate locations may be specified by using either `mpdtags --last=/path/to/mpd.log` or using the `MPD_LOG=/path/to/mpd.log` variable either on the CLI or as an environmental variable (e.g., `export MPD_LOG=/path/to/mpd.log`)
 - Speed is relative, but it takes about 2.5 seconds to retrieve the metadata from 1000 songs preprocessed from a log of random playback:
 ```
 $ time while read -r line; do mpdtags "$line" > /dev/null; done < processed.mpd.log; wc -l processed.mpd.log
