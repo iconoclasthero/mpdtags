@@ -1,4 +1,4 @@
-#define MPDTAGS_VERSION "0.1.2"
+#define MPDTAGS_VERSION "0.1.3"
 #define DEFAULT_MPD_LOG "/var/log/mpd/mpd.log"
 #include <mpd/client.h>
 #include <stdio.h>
