@@ -1,4 +1,4 @@
-#define MPDTAGS_VERSION "0.1.3"
+#define MPDTAGS_VERSION "0.1.4"
 #define DEFAULT_MPD_LOG "/var/log/mpd/mpd.log"
 #include <mpd/client.h>
 #include <stdio.h>
@@ -47,74 +47,22 @@ struct opts {
 //    }
 //}
 
-//static char *find_last_played(const char *logpath)
-//{
-//    fprintf(stderr, "DBG: opening logpath: %s\n", logpath);
-//
-//    FILE *fp = fopen(logpath, "r");
-//    if (!fp) {
-//        perror("DBG: fopen failed");
-//        return NULL;
-//    }
-//
-//    if (fseek(fp, 0, SEEK_END) != 0) {
-//        perror("DBG: fseek end failed");
-//        fclose(fp);
-//        return NULL;
-//    }
-//
-//    long pos = ftell(fp);
-//    if (pos <= 0) {
-//        fclose(fp);
-//        return NULL;
-//    }
-//
-//    char buf[8192];
-//    size_t idx = 0;
-//
-//    while (pos > 0) {
-//        pos--;
-//        if (fseek(fp, pos, SEEK_SET) != 0)
-//            break;
-//
-//        int c = fgetc(fp);
-//        if (c == '\n' || pos == 0) {
-//            if (idx == 0)
-//                continue;
-//
-//            buf[idx] = '\0';
-//            idx = 0;
-//
-//            /* reverse buffer into line */
-//            for (size_t i = 0, j = strlen(buf) - 1; i < j; i++, j--) {
-//                char tmp = buf[i];
-//                buf[i] = buf[j];
-//                buf[j] = tmp;
-//            }
-//
-//            if (strstr(buf, "player: played \"")) {
-//                fprintf(stderr, "DBG: matched line: %s\n", buf);
-//
-//                char *start = strchr(buf, '"');
-//                char *end   = start ? strrchr(start + 1, '"') : NULL;
-//                if (start && end && end > start + 1) {
-//                    char *out = strndup(start + 1, end - start - 1);
-//                    fprintf(stderr, "DBG: extracted path: %s\n", out);
-//                    fclose(fp);
-//                    return out;
-//                }
-//            }
-//            continue;
-//        }
-//
-//        if (idx < sizeof(buf) - 1)
-//            buf[idx++] = (char)c;
-//    }
-//
-//    fclose(fp);
-//    fprintf(stderr, "DBG: no played entry found\n");
-//    return NULL;
-//}
+
+char *unescape_mpd_path(const char *s) {
+    if (!s) return NULL;
+    size_t len = strlen(s);
+    char *out = malloc(len + 1);  // worst case
+    if (!out) return NULL;
+    char *d = out;
+    for (size_t i = 0; i < len; i++) {
+        if (s[i] == '\\' && (s[i+1] == '\\' || s[i+1] == '"')) {
+            i++;
+        }
+        *d++ = s[i];
+    }
+    *d = '\0';
+    return out;
+}
 
 static char *find_last_played(const char *logpath)
 {
@@ -157,15 +105,26 @@ static char *find_last_played(const char *logpath)
                 buf[j] = tmp;
             }
 
-            if (strstr(buf, "player: played \"")) {
+//            if (strstr(buf, "player: played \"")) {
+//                char *start = strchr(buf, '"');
+//                char *end   = start ? strrchr(start + 1, '"') : NULL;
+//                if (start && end && end > start + 1) {
+//                    char *out = strndup(start + 1, end - start - 1);
+//                    fclose(fp);
+//                    return out;
+//                }
+//            }
+            if (strstr(buf, "player: played ")) {
                 char *start = strchr(buf, '"');
-                char *end   = start ? strrchr(start + 1, '"') : NULL;
+                char *end   = strrchr(start + 1, '"');
                 if (start && end && end > start + 1) {
-                    char *out = strndup(start + 1, end - start - 1);
-                    fclose(fp);
-                    return out;
+                    *end = '\0';  // temporarily terminate string
+                    char *path = unescape_mpd_path(start + 1);
+                    fclose(fp);   // close file before returning
+                    return path;  // caller frees
                 }
             }
+
             continue;
         }
 
@@ -272,7 +231,8 @@ static void print_help(void) {
         "**By default MPD will use the MPD_HOST and MPD_PORT environmental variables to connect via TCP\n"
         "but disallows reading of local files over TCP. mpdtags will automatically try to use a domain\n"
         "socket in such a case but --local/--socket will force this with the latter providing the optional\n"
-        "facility to specify a socket path."
+        "facility to specify a socket path.\n"
+        "--last cannot be used remotely\n"
     );
 }
 
@@ -318,9 +278,11 @@ char *strtolower(const char *s) {
     return res;
 }
 
+
 int main(int argc, char **argv) {
     struct opts o = {0};
     parse_flags(argc, argv, &o);
+
 
 		if (o.last) {
 		    const char *logpath =
