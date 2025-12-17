@@ -120,6 +120,25 @@ static char *find_last_played(const char *logpath)
                 if (start && end && end > start + 1) {
                     *end = '\0';  // temporarily terminate string
                     char *path = unescape_mpd_path(start + 1);
+
+                    // extract timestamp before " player: played"
+                    // extract lastcompleted timestamp
+                    char *lastcompleted = NULL;
+                    char *sep = strstr(buf, " : player: ");
+                    if (sep) {
+                        *sep = '\0';  // terminate at " : player: "
+                        lastcompleted = strdup(buf);  // caller frees
+                    } else {
+                        // fallback: take first whitespace-separated word
+                        char *space = strchr(buf, ' ');
+                        if (space) *space = '\0';
+                        lastcompleted = strdup(buf);
+                    }
+
+                    // optionally store or print `lastcompleted`
+                    printf("completed=%s\n", lastcompleted);
+                    free(lastcompleted);
+
                     fclose(fp);   // close file before returning
                     return path;  // caller frees
                 }

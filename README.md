@@ -204,3 +204,27 @@ musicbrainz_releasegroupid='3dbc9bfb-653c-3333-8e8a-3a12c0e7238a'
 time=624
 ```
 
+### Retrieve tags of last song specifying mpd.log path:
+```
+$ mpdtags --last=/var/log/mpd/mpd.log.1
+file='Bob Dylan/Bob Dylan -- Good as I Been to You (1992)/Bob Dylan -- 01-12 - Diamond Joe.flac'
+artist='Bob Dylan'
+album='Good As I Been to You'
+albumartist='Bob Dylan'
+title='Diamond Joe'
+track='12'
+genre='Folk'
+date='1992-11-03'
+disc='1'
+musicbrainz_artistid='72c536dc-7137-4477-a521-567eeb840fa8'
+musicbrainz_albumid='318db5a5-beb2-4ace-bacb-e826505aa389'
+musicbrainz_albumartistid='72c536dc-7137-4477-a521-567eeb840fa8'
+musicbrainz_trackid='9c2ae9c8-6ff6-4d33-9746-4a214ff918cd'
+musicbrainz_releasetrackid='1b3d1d67-157d-3b57-a215-7160aff16b11'
+originaldate='1992-10-30'
+artistsort='Dylan, Bob'
+albumartistsort='Dylan, Bob'
+label='Columbia'
+musicbrainz_releasegroupid='43f420f8-44ca-3ff2-92c2-c6f285cb163b'
+time=197
+```
