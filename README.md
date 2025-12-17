@@ -26,7 +26,7 @@ facility to specify a socket path.
 
 ## Rationale
 
-Ever wanted to use the database that MPD keeps for your music collection to **quickly** retrieve metadata tags for your music in your library? This allows you to use that database and thus obviates the need to keep a second, synchronized database of your music collection. One obvious caveat to note is that files intentionally excluded from the MPD database via `.mpdignore` files will not be present _in the database._
+Ever wanted to use the database—a gzipped text file—that MPD keeps of your music collection to **quickly** retrieve metadata tags for your music in your library? This allows you to use that database and thus obviates the need to keep a second, synchronized database of your music collection. One obvious caveat to note is that files intentionally excluded from the MPD database via `.mpdignore` files will not be present _in the database._
 
 However, MPD has the ability to read from any local file (including ignored files) given an absolute path, but it is prohibited from doing so over TCP (e.g., from a remote connection), so a UNIX domain socket connection must be used. `libmpdclient` will preferentially attempt to use a TCP connection if the `MPD_HOST` and `MPD_PORT` environment variables are set, and will error out in this case.
 
@@ -34,7 +34,7 @@ If a UNIX domain socket exists, `mpdtags` will automatically attempt to connect 
 ## Notes
 
 - A static build exists in the release section that does not require `libmpdclient` to be installed.
-- The --last song flag requires first reading the last song played from the mpd log and thus logging must be enabled via mpd's configuration file. `mpdtags` uses `/var/log/mpd/mpd.log` as the default location; alternate locations may be specified by using either `mpdtags --last=/path/to/mpd.log` or using the `MPD_LOG=/path/to/mpd.log` variable either on the CLI or as an environmental variable (e.g., `export MPD_LOG=/path/to/mpd.log`)
+- The --last song flag requires first reading the last song played from the mpd log and thus logging must be enabled via mpd's configuration file. `mpdtags` uses `/var/log/mpd/mpd.log` as the default location; alternate locations may be specified by using either `mpdtags --last=/path/to/mpd.log` or using the `MPD_LOG=/path/to/mpd.log` variable either on the CLI or as an environmental variable (e.g., `$ MPD_LOG=/parth/to/mpd.log mpdtags --last` OR `$ export MPD_LOG=/path/to/mpd.log; mpdtags --last`). NB: --last will only work if `mpdtags` has read access to the log (and will not work for remote connections).
 - Speed is relative, but it takes about 2.5 seconds to retrieve the metadata from 1000 songs preprocessed from a log of random playback:
 ```
 $ time while read -r line; do mpdtags "$line" > /dev/null; done < processed.mpd.log; wc -l processed.mpd.log
