@@ -316,20 +316,6 @@ int main(int argc, char **argv) {
         o.local=true;
     }
 
-//    if (o.path) {
-//        if (!mpd_send_list_meta(c,o.path)) {
-//            fprintf(stderr,"MPD error: %s\n",mpd_connection_get_error_message(c));
-//            goto out;
-//        }
-//
-//        struct mpd_entity *ent;
-//        while ((ent=mpd_recv_entity(c))) {
-//            if (mpd_entity_get_type(ent)==MPD_ENTITY_TYPE_SONG)
-//                print_song((struct mpd_song*)mpd_entity_get_song(ent));
-//            mpd_entity_free(ent);
-//        }
-//        mpd_response_finish(c);
-//    }
 if (o.path) {
     if (!o.use_socket && !o.local && o.path[0]=='/') {
         fprintf(stderr,"\nMPD cannot access local file over TCP:\n'%s'\n\nTry using --local or --socket\n\n", o.path);
