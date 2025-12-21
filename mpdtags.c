@@ -1,6 +1,9 @@
+#define LIBRARY_PATH "/library/music"
 #define MPDTAGS_VERSION "0.1.4"
 #define DEFAULT_MPD_LOG "/var/log/mpd/mpd.log"
+#define MAX_PLAYER_STATES 8
 #include <mpd/client.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +25,8 @@ static void shellquote(const char *s) {
 
 /* opts */
 struct opts {
-    const char *path;
+//    const char *path;
+    char *path;
     const char *host;
     unsigned port;
     bool use_socket;
@@ -35,7 +39,13 @@ struct opts {
     bool show_version;
     bool last;
     const char *logpath;
+    const char *player_states[MAX_PLAYER_STATES];
+    int nstates;
 };
+
+
+//const char *abs_path_prefix = "/library/music";
+static const char *abs_path_prefix = "/library/music";
 
 ///* state string */
 //static const char *state_string(enum mpd_state s) {
@@ -64,12 +74,22 @@ char *unescape_mpd_path(const char *s) {
     return out;
 }
 
-static char *find_last_played(const char *logpath)
+// returns 0 on success, non-zero on failure
+static int mpdtags_lookup(const char *relpath) {
+    // TODO: implement DB lookup
+    return 1; // simulate "not found"
+}
+
+static int mpdtags_lookup_socket(const char *abs_path) {
+    // TODO: implement socket lookup
+    return 1; // simulate "not found"
+}
+
+static char *find_last_played(const char *logpath, const struct opts *o)
 {
     FILE *fp = fopen(logpath, "r");
-    if (!fp) {
+    if (!fp)
         return NULL;
-    }
 
     if (fseek(fp, 0, SEEK_END) != 0) {
         fclose(fp);
@@ -105,46 +125,79 @@ static char *find_last_played(const char *logpath)
                 buf[j] = tmp;
             }
 
-//            if (strstr(buf, "player: played \"")) {
-//                char *start = strchr(buf, '"');
-//                char *end   = start ? strrchr(start + 1, '"') : NULL;
-//                if (start && end && end > start + 1) {
-//                    char *out = strndup(start + 1, end - start - 1);
-//                    fclose(fp);
-//                    return out;
-//                }
-//            }
-            if (strstr(buf, "player: played ")) {
-                char *start = strchr(buf, '"');
-                char *end   = strrchr(start + 1, '"');
-                if (start && end && end > start + 1) {
-                    *end = '\0';  // temporarily terminate string
-                    char *path = unescape_mpd_path(start + 1);
+            /* original logic kept */
+            // if (strstr(buf, "player: played \"")) {
+            //     ...
+            // }
 
-                    // extract timestamp before " player: played"
-                    // extract lastcompleted timestamp
-                    char *lastcompleted = NULL;
-                    char *sep = strstr(buf, " : player: ");
-                    if (sep) {
-                        *sep = '\0';  // terminate at " : player: "
-                        lastcompleted = strdup(buf);  // caller frees
-                    } else {
-                        // fallback: take first whitespace-separated word
-                        char *space = strchr(buf, ' ');
-                        if (space) *space = '\0';
-                        lastcompleted = strdup(buf);
-                    }
+            /* match requested player states */
+            const char *matched_state = NULL;
 
-                    // optionally store or print `lastcompleted`
-                    printf("completed=%s\n", lastcompleted);
-                    free(lastcompleted);
+            for (int i = 0; i < o->nstates; i++) {
+                char needle[64];
+                snprintf(needle, sizeof(needle),
+                         "player: %s ", o->player_states[i]);
 
-                    fclose(fp);   // close file before returning
-                    return path;  // caller frees
+                if (strstr(buf, needle)) {
+                    matched_state = o->player_states[i];
+                    break;
                 }
             }
 
-            continue;
+            if (!matched_state)
+                continue;
+
+            /* extract quoted path */
+            char *start = strchr(buf, '"');
+            char *end   = start ? strrchr(start + 1, '"') : NULL;
+            if (!start || !end || end <= start + 1)
+                continue;
+
+            *end = '\0';
+            char *rel_path = unescape_mpd_path(start + 1);
+
+            /* extract timestamp */
+            char *lastcompleted = NULL;
+            char *sep = strstr(buf, " player: ");
+            if (sep) {
+                *sep = '\0';
+                lastcompleted = strdup(buf);
+            }
+
+            /* log-derived output happens FIRST */
+            if (lastcompleted)
+                printf("completed=%s\n", lastcompleted);
+            printf("player=%s\n", matched_state);
+
+            /* try DB lookup first (relative path) */
+            if (mpdtags_lookup(rel_path) == 0) {
+                free(lastcompleted);
+                fclose(fp);
+                return rel_path;
+            }
+
+            /* fallback: absolute path via socket */
+            {
+                char abs_path[PATH_MAX];
+                snprintf(abs_path, sizeof(abs_path),
+                         "%s/%s", abs_path_prefix, rel_path);
+
+                char *abs_dup = strdup(abs_path);
+
+                if (mpdtags_lookup_socket(abs_dup) == 0) {
+                    free(rel_path);
+                    free(lastcompleted);
+                    fclose(fp);
+                    return abs_dup;
+                }
+
+                /* both failed: still return the log path */
+                free(abs_dup);
+            }
+
+            free(lastcompleted);
+            fclose(fp);
+            return rel_path;
         }
 
         if (idx < sizeof(buf) - 1)
@@ -154,8 +207,6 @@ static char *find_last_played(const char *logpath)
     fclose(fp);
     return NULL;
 }
-
-
 
 /* resolve socket */
 static const char *resolve_socket(void) {
@@ -183,6 +234,7 @@ static const char *resolve_socket(void) {
 
 /* parse flags */
 static void parse_flags(int argc, char **argv, struct opts *o) {
+
     if (argc == 1) {  // no arguments
         o->show_help = true;
         return;        // nothing else to parse
@@ -200,6 +252,13 @@ static void parse_flags(int argc, char **argv, struct opts *o) {
             o->socket_path = arg + 9;
         } else if (!strcmp(arg, "--socket")) {
             o->use_socket = true;
+				} else if (!strncmp(arg, "--player=", 9)) {
+				    if (o->nstates < MAX_PLAYER_STATES) {
+				        o->player_states[o->nstates++] = arg + 9;  // points into argv
+				    } else {
+				        fprintf(stderr, "mpdtags: too many --player options (max %d)\n",
+				                MAX_PLAYER_STATES);
+				    }
         } else if (!strcmp(arg, "--local")) {
             o->local = true;
         } else if (!strcmp(arg, "--help")) {
@@ -228,6 +287,10 @@ static void parse_flags(int argc, char **argv, struct opts *o) {
             o->show_help = true;
         }
     }
+
+		if (o->nstates == 0) {
+		    o->player_states[o->nstates++] = "played";
+		}
 }
 
 
@@ -300,6 +363,7 @@ char *strtolower(const char *s) {
 
 int main(int argc, char **argv) {
     struct opts o = {0};
+    bool path_is_allocated = false;
     parse_flags(argc, argv, &o);
 
 
@@ -307,12 +371,15 @@ int main(int argc, char **argv) {
 		    const char *logpath =
 		        o.logpath ? o.logpath : getenv("MPD_LOG") ? getenv("MPD_LOG") : DEFAULT_MPD_LOG;
 
-		    char *p = find_last_played(logpath);
+		    char *p = find_last_played(logpath, &o);
 		    if (!p) {
 		        fprintf(stderr, "mpdtags: unable to determine last played song from %s\n", logpath);
 		        return 1;
 		    }
-		    o.path = p;
+//		    o.path = p;
+o.path = p;
+path_is_allocated = true;
+
 		}
 
     if (o.show_help) {
@@ -383,13 +450,80 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (o.path) {
-        /* TCP/local-file metadata fetch — handle TCP restrictions */
-        if (!mpd_send_list_meta(c, o.path)) {
-            fprintf(stderr, "MPD error: %s\n",
-                    mpd_connection_get_error_message(c));
+/* --last ignored files must be handled as local files */
+if (o.last && o.use_socket) {
+    /* absolute path required for local lookup */
+    if (o.path[0] != '/') {
+        size_t len = strlen(abs_path_prefix) + 1 + strlen(o.path) + 1;
+        char *abs = malloc(len);
+        if (!abs) {
+            fprintf(stderr, "out of memory\n");
             goto out;
         }
+
+        snprintf(abs, len, "%s/%s", abs_path_prefix, o.path);
+
+        if (path_is_allocated)
+            free((char *)o.path);
+
+        o.path = abs;
+        path_is_allocated = true;
+    }
+
+    /* force local-file semantics */
+    o.local = true;
+}
+
+
+    if (o.path) {
+        /* TCP/local-file metadata fetch — handle TCP restrictions */
+//        if (!mpd_send_list_meta(c, o.path)) {
+//            fprintf(stderr, "MPD error: %s\n",
+//                    mpd_connection_get_error_message(c));
+//            goto out;
+//        }
+if (!mpd_send_list_meta(c, o.path)) {
+
+    /* --last fallback: retry via absolute path over socket */
+    if (o.last && o.use_socket) {
+        char *abs_path;
+        int len = strlen(abs_path_prefix) + 1 + strlen(o.path) + 1;
+
+        abs_path = malloc(len);
+        if (abs_path) {
+            snprintf(abs_path, len, "%s/%s", abs_path_prefix, o.path);
+
+//            mpd_connection_clear_error(c);
+//
+//            if (mpd_send_list_meta(c, abs_path)) {
+//                free(o.path);
+//                o.path = abs_path;
+//                goto read_tags;
+//            }
+mpd_connection_free(c);
+
+c = connect_mpd(&(struct opts){
+    .use_socket = true,
+    .socket_path = o.socket_path,
+    .local = true
+});
+
+if (c && mpd_send_list_meta(c, abs_path)) {
+    free(o.path);
+    o.path = abs_path;
+    goto read_tags;
+}
+
+            free(abs_path);
+        }
+    }
+
+    fprintf(stderr, "MPD error: %s\n",
+            mpd_connection_get_error_message(c));
+    goto out;
+}
+
+read_tags:
 
         struct mpd_entity *ent;
         while ((ent = mpd_recv_entity(c))) {
@@ -560,8 +694,10 @@ int main(int argc, char **argv) {
 	    if (st) mpd_status_free(st);
 
 	    /* free path only if we allocated it via --last */
-	    if (o.last && o.path)
-	        free((char *)o.path);
+//	    if (o.last && o.path)
+//	        free((char *)o.path);
+if (path_is_allocated && o.path)
+    free((char *)o.path);
 
 	    mpd_connection_free(c);
 	    return 0;

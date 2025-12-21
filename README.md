@@ -1,6 +1,6 @@
 # mpdtags
 
-A small utility to fetch MPD song metadata, with optional socket fallback for local files.
+A small utility to fetch song metadata from the MPD database, with optional socket fallback for local files.
 
 ## Usage
 
@@ -207,6 +207,7 @@ time=624
 ### Retrieve tags of last song specifying mpd.log path:
 ```
 $ mpdtags --last=/var/log/mpd/mpd.log.1
+completed=2025-12-17T10:23:55
 file='Bob Dylan/Bob Dylan -- Good as I Been to You (1992)/Bob Dylan -- 01-12 - Diamond Joe.flac'
 artist='Bob Dylan'
 album='Good As I Been to You'
