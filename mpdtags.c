@@ -316,25 +316,78 @@ int main(int argc, char **argv) {
         o.local=true;
     }
 
+//if (o.path) {
+//    if (!o.use_socket && !o.local && o.path[0]=='/') {
+//        fprintf(stderr,"\nMPD cannot access local file over TCP:\n'%s'\n\nTry using --local or --socket\n\n", o.path);
+//        goto out;
+//    }
+//
+//    if (!mpd_send_list_meta(c,o.path)) {
+//        fprintf(stderr,"MPD error: %s\n", mpd_connection_get_error_message(c));
+//        goto out;
+//    }
+//
+//    struct mpd_entity *ent;
+//    while ((ent = mpd_recv_entity(c))) {
+//        if (mpd_entity_get_type(ent) == MPD_ENTITY_TYPE_SONG)
+//            print_song((struct mpd_song*)mpd_entity_get_song(ent));
+//        mpd_entity_free(ent);
+//    }
+//    mpd_response_finish(c);
+//}
+
 if (o.path) {
-    if (!o.use_socket && !o.local && o.path[0]=='/') {
-        fprintf(stderr,"\nMPD cannot access local file over TCP:\n'%s'\n\nTry using --local or --socket\n\n", o.path);
-        goto out;
+    const char *tcp_error = NULL;
+    const char *sock_error = NULL;
+    bool got_songs = false;
+
+    /* first try TCP / normal connection */
+    if (!mpd_send_list_meta(c, o.path)) {
+        tcp_error = mpd_connection_get_error_message(c);
+    } else {
+        struct mpd_entity *ent;
+        while ((ent = mpd_recv_entity(c))) {
+            got_songs = true;
+            if (mpd_entity_get_type(ent) == MPD_ENTITY_TYPE_SONG)
+                print_song((struct mpd_song *)mpd_entity_get_song(ent));
+            mpd_entity_free(ent);
+        }
+        mpd_response_finish(c);
     }
 
-    if (!mpd_send_list_meta(c,o.path)) {
-        fprintf(stderr,"MPD error: %s\n", mpd_connection_get_error_message(c));
-        goto out;
+    /* ALWAYS fallback to socket if nothing retrieved and socket allowed */
+    if (!got_songs && (!o.use_socket || strcmp(o.socket_path,"none")!=0)) {
+        mpd_connection_free(c);
+        c = connect_mpd(&(struct opts){
+            .use_socket = true,
+            .socket_path = o.socket_path,
+            .local = true
+        });
+
+        if (!c) {
+            sock_error = "failed to connect via socket";
+        } else if (!mpd_send_list_meta(c, o.path)) {
+            sock_error = mpd_connection_get_error_message(c);
+        } else {
+            struct mpd_entity *ent;
+            while ((ent = mpd_recv_entity(c))) {
+                got_songs = true;
+                if (mpd_entity_get_type(ent) == MPD_ENTITY_TYPE_SONG)
+                    print_song((struct mpd_song *)mpd_entity_get_song(ent));
+                mpd_entity_free(ent);
+            }
+            mpd_response_finish(c);
+        }
     }
 
-    struct mpd_entity *ent;
-    while ((ent = mpd_recv_entity(c))) {
-        if (mpd_entity_get_type(ent) == MPD_ENTITY_TYPE_SONG)
-            print_song((struct mpd_song*)mpd_entity_get_song(ent));
-        mpd_entity_free(ent);
+    /* report errors if no songs retrieved */
+    if (!got_songs) {
+        if (tcp_error)  fprintf(stderr, "[TCP] no entities returned for path: %s\n", o.path);
+        if (sock_error) fprintf(stderr, "[SOCKET] no entities returned for path: %s (%s)\n", o.path, sock_error);
+        goto out;
     }
-    mpd_response_finish(c);
 }
+
 
     if (song) print_song(song);
 
