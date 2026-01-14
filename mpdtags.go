@@ -1,8 +1,8 @@
 package main
 
 import (
+  "flag"
 	"bufio"
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -13,19 +13,6 @@ import (
 )
 
 var defaultLog = "/var/log/mpd/mpd.log"
-
-type lastFlag struct {
-    path string
-    seen bool
-}
-
-func (l *lastFlag) String() string { return l.path }
-func (l *lastFlag) Set(value string) error {
-    l.path = value
-    l.seen = true
-    return nil
-}
-
 
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
@@ -89,19 +76,9 @@ func findLastPlayed(logpath string) (completed, player, file string, err error) 
 	return completed, player, file, nil
 }
 
-var last string
-
-func init() {
-    last = defaultLog
-    flag.StringVar(&last, "last", defaultLog, "last played song (optional log path)")
-}
-
 func main() {
-
 	var conn *mpd.Client
 	var err error
-  var last lastFlag
-  last.path = defaultLog
 
 	host := flag.String("host", "localhost", "MPD host")
 	port := flag.Int("port", 6600, "MPD port")
@@ -111,8 +88,27 @@ func main() {
 	next := flag.Bool("next", false, "next song")
 	status := flag.Bool("status", false, "MPD status")
 
+	// parse all flags except --last
 	flag.Parse()
 
+	// Handle --last manually
+	lastLog := defaultLog
+	lastSeen := false
+	for i, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, "--last") {
+			lastSeen = true
+			if arg == "--last" {
+				lastLog = defaultLog
+			} else if strings.HasPrefix(arg, "--last=") {
+				lastLog = strings.TrimPrefix(arg, "--last=")
+			} else if arg == "--last" && i+2 <= len(os.Args[1:]) {
+				lastLog = os.Args[i+2]
+			}
+			break
+		}
+	}
+
+	// Connect to MPD
 	if *socket != "" {
 		conn, err = mpd.Dial("unix", *socket)
 	} else {
@@ -123,25 +119,27 @@ func main() {
 	}
 	defer conn.Close()
 
-  if last.seen {
-      completed, player, path, err := findLastPlayed(last.path)
-      if err != nil {
-          fmt.Fprintf(os.Stderr, "mpdtags: %v\n", err)
-          os.Exit(1)
-      }
+	// Handle --last
+	if lastSeen {
+		completed, player, path, err := findLastPlayed(lastLog)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "mpdtags: %v\n", err)
+			os.Exit(1)
+		}
 
-      fmt.Printf("completed=%s\nplayer=%s\n", completed, player)
+		fmt.Printf("completed=%s\nplayer=%s\n", completed, player)
 
-      songs, err := conn.ListAllInfo(path)
-      if err != nil || len(songs) == 0 {
-          fmt.Fprintf(os.Stderr, "mpdtags: file not found in MPD database\n")
-          os.Exit(1)
-      }
+		songs, err := conn.ListAllInfo(path)
+		if err != nil || len(songs) == 0 {
+			fmt.Fprintf(os.Stderr, "mpdtags: file not found in MPD database\n")
+			os.Exit(1)
+		}
 
-      printSong(songs[0])
-      return
-  }
+		printSong(songs[0])
+		return
+	}
 
+	// Handle --current
 	if *current {
 		song, err := conn.CurrentSong()
 		if err != nil {
@@ -154,6 +152,7 @@ func main() {
 		}
 	}
 
+	// Handle --next
 	if *next {
 		st, err := conn.Status()
 		if err != nil {
@@ -169,25 +168,7 @@ func main() {
 		}
 	}
 
-//	if *last {
-//		completed, player, path, err := findLastPlayed(*lastlog)
-//		if err != nil {
-//			fmt.Fprintf(os.Stderr, "mpdtags: %v\n", err)
-//			os.Exit(1)
-//		}
-//
-//		fmt.Printf("completed=%s\n", completed)
-//		fmt.Printf("player=%s\n", player)
-//
-//		songs, err := conn.ListAllInfo(path)
-//		if err != nil || len(songs) == 0 {
-//			fmt.Fprintf(os.Stderr, "mpdtags: file not found in MPD database\n")
-//			os.Exit(1)
-//		}
-//
-//		printSong(songs[0])
-//	}
-
+	// Handle --status
 	if *status {
 		st, err := conn.Status()
 		if err != nil {
@@ -198,3 +179,96 @@ func main() {
 		}
 	}
 }
+
+//func main() {
+//	var lastPath string
+//	var useLast bool
+//
+//	host := pflag.String("host", "localhost", "MPD host")
+//	port := pflag.Int("port", 6600, "MPD port")
+//	socket := pflag.String("socket", "", "MPD socket path")
+//	current := pflag.Bool("current", false, "current song")
+//	next := pflag.Bool("next", false, "next song")
+//	status := pflag.Bool("status", false, "MPD status")
+//
+//	// optional value flag: --last or --last=/path/to/log
+//	pflag.Func("last", "last played song (optional log path)", func(s string) error {
+//		useLast = true
+//		if s == "" {
+//			lastPath = defaultLog
+//		} else {
+//			lastPath = s
+//		}
+//		return nil
+//	})
+//
+//	pflag.Parse()
+//
+//	var conn *mpd.Client
+//	var err error
+//	if *socket != "" {
+//		conn, err = mpd.Dial("unix", *socket)
+//	} else {
+//		conn, err = mpd.Dial("tcp", fmt.Sprintf("%s:%d", *host, *port))
+//	}
+//	if err != nil {
+//		log.Fatalf("MPD connect error: %v", err)
+//	}
+//	defer conn.Close()
+//
+//	if useLast {
+//		completed, player, path, err := findLastPlayed(lastPath)
+//		if err != nil {
+//			fmt.Fprintf(os.Stderr, "mpdtags: %v\n", err)
+//			os.Exit(1)
+//		}
+//
+//		fmt.Printf("completed=%s\nplayer=%s\n", completed, player)
+//
+//		songs, err := conn.ListAllInfo(path)
+//		if err != nil || len(songs) == 0 {
+//			fmt.Fprintf(os.Stderr, "mpdtags: file not found in MPD database\n")
+//			os.Exit(1)
+//		}
+//
+//		printSong(songs[0])
+//		return
+//	}
+//
+//	if *current {
+//		song, err := conn.CurrentSong()
+//		if err != nil {
+//			log.Fatalf("current song error: %v", err)
+//		}
+//		if song == nil {
+//			fmt.Println("no current song")
+//		} else {
+//			printSong(song)
+//		}
+//	}
+//
+//	if *next {
+//		st, err := conn.Status()
+//		if err != nil {
+//			fmt.Println("failed to get next song:", err)
+//		} else {
+//			nextIdx, _ := strconv.Atoi(st["nextsong"])
+//			songs, err := conn.PlaylistInfo(nextIdx, -1)
+//			if err != nil || len(songs) == 0 {
+//				fmt.Println("failed to get next song")
+//			} else {
+//				printSong(songs[0])
+//			}
+//		}
+//	}
+//
+//	if *status {
+//		st, err := conn.Status()
+//		if err != nil {
+//			log.Fatalf("status error: %v", err)
+//		}
+//		for k, v := range st {
+//			fmt.Printf("%s: %s\n", k, v)
+//		}
+//	}
+//}
