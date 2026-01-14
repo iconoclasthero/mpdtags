@@ -75,7 +75,177 @@ static int mpdtags_lookup(const char *relpath) { return 1; }
 /* stub socket lookup: returns 0 on success */
 static int mpdtags_lookup_socket(const char *abs_path) { return 1; }
 
-/* find last played from log */
+///* find last played from log */
+////static char *find_last_played(const char *logpath, const struct opts *o) {
+////    FILE *fp = fopen(logpath, "r");
+////    if (!fp) return NULL;
+////
+////    if (fseek(fp, 0, SEEK_END) != 0) { fclose(fp); return NULL; }
+////    long pos = ftell(fp);
+////    if (pos <= 0) { fclose(fp); return NULL; }
+////
+////    char buf[8192];
+////    size_t idx = 0;
+////
+////    while (pos > 0) {
+////        pos--;
+////        if (fseek(fp, pos, SEEK_SET) != 0) break;
+////
+////        int c = fgetc(fp);
+////        if (c == '\n' || pos == 0) {
+////            if (idx == 0) continue;
+////            buf[idx] = '\0';
+////            idx = 0;
+////
+////            /* reverse buffer */
+////            for (size_t i = 0, j = strlen(buf)-1; i < j; i++, j--) {
+////                char tmp = buf[i];
+////                buf[i] = buf[j];
+////                buf[j] = tmp;
+////            }
+////
+////            const char *matched_state = NULL;
+////            for (int i = 0; i < o->nstates; i++) {
+////                char needle[64];
+////                snprintf(needle, sizeof(needle), "player: %s ", o->player_states[i]);
+////                if (strstr(buf, needle)) { matched_state = o->player_states[i]; break; }
+////            }
+////            if (!matched_state) continue;
+////
+////            char *start = strchr(buf, '"');
+////            char *end   = start ? strrchr(start+1, '"') : NULL;
+////            if (!start || !end || end <= start+1) continue;
+////
+////            *end = '\0';
+////            char *rel_path = unescape_mpd_path(start+1);
+////
+////            char *lastcompleted = NULL;
+////            char *sep = strstr(buf, " player: ");
+////            if (sep) { *sep = '\0'; lastcompleted = strdup(buf); }
+////
+////            if (lastcompleted) printf("completed=%s\n", lastcompleted);
+////            printf("player=%s\n", matched_state);
+////
+////            if (mpdtags_lookup(rel_path) == 0) {
+////                free(lastcompleted);
+////                fclose(fp);
+////                return rel_path;
+////            }
+////
+////            char abs_path[PATH_MAX];
+////            snprintf(abs_path, sizeof(abs_path), "%s/%s", abs_path_prefix, rel_path);
+////            char *abs_dup = strdup(abs_path);
+////
+////            if (mpdtags_lookup_socket(abs_dup) == 0) {
+////                free(rel_path);
+////                free(lastcompleted);
+////                fclose(fp);
+////                return abs_dup;
+////            }
+////
+////            free(abs_dup);
+////            free(lastcompleted);
+////            fclose(fp);
+////            return rel_path;
+////        }
+////
+////        if (idx < sizeof(buf)-1) buf[idx++] = (char)c;
+////    }
+////
+////    fclose(fp);
+////    return NULL;
+////}
+//
+///* find last played from log (PURE: log → relpath only) */
+//static char *find_last_played(const char *logpath, const struct opts *o) {
+//    FILE *fp = fopen(logpath, "r");
+//    if (!fp) return NULL;
+//
+//    if (fseek(fp, 0, SEEK_END) != 0) {
+//        fclose(fp);
+//        return NULL;
+//    }
+//
+//    long pos = ftell(fp);
+//    if (pos <= 0) {
+//        fclose(fp);
+//        return NULL;
+//    }
+//
+//    char buf[8192];
+//    size_t idx = 0;
+//
+//    while (pos > 0) {
+//        pos--;
+//        if (fseek(fp, pos, SEEK_SET) != 0)
+//            break;
+//
+//        int c = fgetc(fp);
+//
+//        if (c == '\n' || pos == 0) {
+//            if (idx == 0)
+//                continue;
+//
+//            buf[idx] = '\0';
+//            idx = 0;
+//
+//            /* reverse buffer (we read backwards) */
+//            for (size_t i = 0, j = strlen(buf) - 1; i < j; i++, j--) {
+//                char tmp = buf[i];
+//                buf[i] = buf[j];
+//                buf[j] = tmp;
+//            }
+//
+//            /* match player state */
+//            const char *matched_state = NULL;
+//            for (int i = 0; i < o->nstates; i++) {
+//                char needle[64];
+//                snprintf(needle, sizeof needle, "player: %s ", o->player_states[i]);
+//                if (strstr(buf, needle)) {
+//                    matched_state = o->player_states[i];
+//                    break;
+//                }
+//            }
+//            if (!matched_state)
+//                continue;
+//
+//            /* extract quoted path */
+//            char *start = strchr(buf, '"');
+//            char *end   = start ? strrchr(start + 1, '"') : NULL;
+//            if (!start || !end || end <= start + 1)
+//                continue;
+//
+//            *end = '\0';
+//            char *rel_path = unescape_mpd_path(start + 1);
+//            if (!rel_path)
+//                continue;
+//
+//            /* extract completed timestamp */
+//            char *lastcompleted = NULL;
+//            char *sep = strstr(buf, " player: ");
+//            if (sep) {
+//                *sep = '\0';
+//                lastcompleted = strdup(buf);
+//            }
+//
+//            if (lastcompleted)
+//                printf("completed=%s\n", lastcompleted);
+//            printf("player=%s\n", matched_state);
+//
+//            free(lastcompleted);
+//            fclose(fp);
+//            return rel_path;
+//        }
+//
+//        if (idx < sizeof(buf) - 1)
+//            buf[idx++] = (char)c;
+//    }
+//
+//    fclose(fp);
+//    return NULL;
+//}
+
+/* find last played or skipped from log */
 static char *find_last_played(const char *logpath, const struct opts *o) {
     FILE *fp = fopen(logpath, "r");
     if (!fp) return NULL;
@@ -86,6 +256,10 @@ static char *find_last_played(const char *logpath, const struct opts *o) {
 
     char buf[8192];
     size_t idx = 0;
+
+    char *last_relpath = NULL;
+    char *lastcompleted = NULL;
+    const char *last_state = NULL;
 
     while (pos > 0) {
         pos--;
@@ -104,57 +278,55 @@ static char *find_last_played(const char *logpath, const struct opts *o) {
                 buf[j] = tmp;
             }
 
+            /* match player state (played or skipped) */
             const char *matched_state = NULL;
             for (int i = 0; i < o->nstates; i++) {
                 char needle[64];
-                snprintf(needle, sizeof(needle), "player: %s ", o->player_states[i]);
-                if (strstr(buf, needle)) { matched_state = o->player_states[i]; break; }
+                snprintf(needle, sizeof needle, "player: %s ", o->player_states[i]);
+                if (strstr(buf, needle)) {
+                    matched_state = o->player_states[i];
+                    break;
+                }
             }
             if (!matched_state) continue;
 
+            /* extract quoted path */
             char *start = strchr(buf, '"');
             char *end   = start ? strrchr(start+1, '"') : NULL;
             if (!start || !end || end <= start+1) continue;
 
             *end = '\0';
             char *rel_path = unescape_mpd_path(start+1);
+            if (!rel_path) continue;
 
-            char *lastcompleted = NULL;
+            /* extract completed timestamp */
+            char *completed = NULL;
             char *sep = strstr(buf, " player: ");
-            if (sep) { *sep = '\0'; lastcompleted = strdup(buf); }
+            if (sep) { *sep = '\0'; completed = strdup(buf); }
 
-            if (lastcompleted) printf("completed=%s\n", lastcompleted);
-            printf("player=%s\n", matched_state);
+            /* keep only the last match */
+            if (last_relpath) free(last_relpath);
+            if (lastcompleted) free(lastcompleted);
 
-            if (mpdtags_lookup(rel_path) == 0) {
-                free(lastcompleted);
-                fclose(fp);
-                return rel_path;
-            }
-
-            char abs_path[PATH_MAX];
-            snprintf(abs_path, sizeof(abs_path), "%s/%s", abs_path_prefix, rel_path);
-            char *abs_dup = strdup(abs_path);
-
-            if (mpdtags_lookup_socket(abs_dup) == 0) {
-                free(rel_path);
-                free(lastcompleted);
-                fclose(fp);
-                return abs_dup;
-            }
-
-            free(abs_dup);
-            free(lastcompleted);
-            fclose(fp);
-            return rel_path;
+            last_relpath = rel_path;
+            lastcompleted = completed;
+            last_state = matched_state;
         }
 
         if (idx < sizeof(buf)-1) buf[idx++] = (char)c;
     }
 
     fclose(fp);
-    return NULL;
+
+    if (!last_relpath) return NULL;
+
+    if (lastcompleted) printf("completed=%s\n", lastcompleted);
+    printf("player=%s\n", last_state);
+
+    free(lastcompleted);
+    return last_relpath;
 }
+
 
 /* resolve socket path */
 static const char *resolve_socket(void) {
@@ -206,7 +378,11 @@ static void parse_flags(int argc, char **argv, struct opts *o) {
         else { fprintf(stderr,"unknown argument: %s\n",arg); o->show_help=true; }
     }
 
-    if (o->nstates==0) o->player_states[o->nstates++]="played";
+    if (o->nstates == 0) {
+        o->player_states[o->nstates++] = "skipped";
+        o->player_states[o->nstates++] = "played";
+    }
+//    if (o->nstates==0) o->player_states[o->nstates++]="played";
 }
 
 /* help */
