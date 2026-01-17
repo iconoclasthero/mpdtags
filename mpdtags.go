@@ -259,26 +259,74 @@ func main() {
     useSocket bool
   )
 
-// 1. Pre-parse os.Args for bare --socket
-for i := 1; i < len(os.Args); i++ {
-    if os.Args[i] == "--socket" {
-        // bare --socket: force using default socket
-        socket = "" // will be handled by dialMPD
-        useSocket = true
-        if useSocket { dbg("useSocket=%v", useSocket) }
-        // remove this arg so flag package doesn't try to consume the next arg
-        os.Args = append(os.Args[:i], os.Args[i+1:]...)
-        break
-    }
-}
+//// 1. Pre-parse os.Args for bare --socket
+//for i := 1; i < len(os.Args); i++ {
+//    if os.Args[i] == "--socket" {
+//        // bare --socket: force using default socket
+//        socket = "" // will be handled by dialMPD
+//        useSocket = true
+//        if useSocket { dbg("useSocket=%v", useSocket) }
+//        // remove this arg so flag package doesn't try to consume the next arg
+//        os.Args = append(os.Args[:i], os.Args[i+1:]...)
+//        break
+//    }
+//}
+
+
+	// Custom parsing for --last/--last=/path/to/file.log
+	// `--last /path/to/file.log` is explicitly disallowed
+
+	for i := 1; i < len(os.Args); i++ {
+	    arg := os.Args[i]
+
+	    if arg == "--last" {
+	        last = true
+	        lastLog = "" // default log path
+	        dbg("last=true (default log)")
+	        os.Args = append(os.Args[:i], os.Args[i+1:]...)
+	        break
+	    }
+
+	    if strings.HasPrefix(arg, "--last=") {
+	        last = true
+	        lastLog = strings.TrimPrefix(arg, "--last=")
+	        dbg("last=true log=%q", lastLog)
+	        os.Args = append(os.Args[:i], os.Args[i+1:]...)
+	        break
+	    }
+	}
+
+
+	// Custom parsing for --socket/--socket=/path/to/socket
+	// `--socket /path/to/socket` is explicitly disallowed
+
+	for i := 1; i < len(os.Args); i++ {
+	    arg := os.Args[i]
+
+	    if arg == "--socket" {
+	        useSocket = true
+	        socket = "" // default socket
+	        dbg("useSocket=true (bare --socket)")
+	        os.Args = append(os.Args[:i], os.Args[i+1:]...)
+	        break
+	    }
+
+	    if strings.HasPrefix(arg, "--socket=") {
+	        useSocket = true
+	        socket = strings.TrimPrefix(arg, "--socket=")
+	        dbg("useSocket=true socket=%q", socket)
+	        os.Args = append(os.Args[:i], os.Args[i+1:]...)
+	        break
+	    }
+	}
 
   flag.StringVar(&host, "host", "", "MPD host")
   flag.IntVar(&port, "port", 6600, "MPD port")
-  flag.StringVar(&socket, "socket", "", "MPD socket")
+//  flag.StringVar(&socket, "socket", "", "MPD socket")
 
   flag.BoolVar(&current, "current", false, "current song")
   flag.BoolVar(&next, "next", false, "next song")
-  flag.BoolVar(&last, "last", false, "last played")
+//  flag.BoolVar(&last, "last", false, "last played")
 
   flag.BoolVar(&tryParsed, "tryparsed", false, "try filename parsing fallback")
   flag.StringVar(&lastLog, "lastlog", defaultLog, "mpd log path")
