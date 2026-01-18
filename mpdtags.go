@@ -16,7 +16,7 @@ import (
 var (
   defaultLog       = "/var/log/mpd/mpd.log"
   defaultLibPrefix = "/library/music"
-  debug     bool   = false // manual toggle
+  debug     bool   = true // manual toggle
   tryParsed bool
   rawTags   bool
 )
@@ -27,6 +27,44 @@ var (
   reFlatFile  = regexp.MustCompile(`^\d{2}-\d{2} - ([^/]+) -- (.+)\.[^.]+$`)
 )
 
+
+//type parsedTrack struct {
+//  artist string
+//  disc   string
+//  track  string
+//  title  string
+//}
+//
+//type trackParser struct {
+//  re      *regexp.Regexp
+//  handler func([]string) (*parsedTrack, error)
+//}
+//
+//
+//var trackParsers = []trackParser{
+//  {
+//    re: reTrackArtistBefore,
+//    handler: func(m []string) (*parsedTrack, error) {
+//      return &parsedTrack{
+//        artist: m[1],
+//        disc:   m[2],
+//        track:  m[3],
+//        title:  m[4],
+//      }, nil
+//    },
+//  },
+//  {
+//    re: reTrackArtistAfter,
+//    handler: func(m []string) (*parsedTrack, error) {
+//      return &parsedTrack{
+//        artist: m[3],
+//        disc:   m[1],
+//        track:  m[2],
+//        title:  m[4],
+//      }, nil
+//    },
+//  },
+//}
 
 /* ---------------- utils ---------------- */
 
@@ -50,16 +88,16 @@ func emitError(msg string) {
 //} // cnuf printSong
 
 func printSong(song map[string]string) {
-    for k, v := range song {
-        outk := k
-        if !rawTags {
-            outk = strings.ToLower(k)
-            if outk == "last-modified" {
-                outk = "lastmodified"
-            }
-        }
-        fmt.Printf("%s=%q\n", outk, v)
+  for k, v := range song {
+    outk := k
+    if !rawTags {
+      outk = strings.ToLower(k)
+      if outk == "last-modified" {
+        outk = "lastmodified"
+      }
     }
+    fmt.Printf("%s=%q\n", outk, v)
+  }
 } // cnuf printSong
 
 /* ---------------- mpd connect ---------------- */
@@ -104,38 +142,76 @@ func defaultMPDSocket() string {
 } // cnuf defaultMPDSocket
 
 
-func dialMPD(host string, port int, socket string, useSocket bool) (*mpd.Client, error) {
-    envHost, envSocket, envPass := parseMPDHostEnv()
+//func dialMPD(host string, port int, socket string, useSocket bool) (*mpd.Client, error) {
+//  envHost, envSocket, envPass := parseMPDHostEnv()
+//
+//  // Socket selection logic
+//  if useSocket { // bare --socket: always use socket (CLI > env > default)
+//    if socket == "" {
+//      if envSocket != "" {
+//        socket = envSocket
+//        dbg("using socket from MPD_HOST env: %q", socket)
+//      } else {
+//        socket = defaultMPDSocket()
+//        dbg("using default socket: %q", socket)
+//      }
+//    }
+//  } else { // --socket=/path or nothing
+//    if socket == "" {
+//      if envSocket != "" {
+//        socket = envSocket
+//        dbg("using socket from MPD_HOST env: %q", socket)
+//      } else {
+//        socket = defaultMPDSocket()
+//        dbg("using default socket: %q", socket)
+//      }
+//    }
+//  }
+//
+//  if host == "" {
+//    host = envHost
+//  }
+//
+//  var c *mpd.Client
+//  var err error
+//
+//  if socket != "" {
+//    dbg("dial unix %s", socket)
+//    c, err = mpd.Dial("unix", socket)
+//  } else {
+//    if host == "" {
+//      host = "localhost"
+//    }
+//    dbg("dial tcp %s:%d", host, port)
+//    c, err = mpd.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
+//  }
+//
+//  if err != nil {
+//    return nil, err
+//  }
+//
+//  if envPass != "" {
+//    if err := c.Command("password " + envPass).OK(); err != nil {
+//      c.Close()
+//      return nil, err
+//    }
+//  }
+//
+//  return c, nil
+//} // cnuf dialMPD
 
-    // Socket selection logic
-    if useSocket { // bare --socket: always use socket (CLI > env > default)
-        if socket == "" {
-            if envSocket != "" {
-                socket = envSocket
-                dbg("using socket from MPD_HOST env: %q", socket)
-            } else {
-                socket = defaultMPDSocket()
-                dbg("using default socket: %q", socket)
-            }
-        }
-    } else { // --socket=/path or nothing
-        if socket == "" {
-            if envSocket != "" {
-                socket = envSocket
-                dbg("using socket from MPD_HOST env: %q", socket)
-            } else {
-                socket = defaultMPDSocket()
-                dbg("using default socket: %q", socket)
-            }
-        }
-    }
+
+func dialMPD(host string, port int, socket string, useSocket bool) (*mpd.Client, error) {
+    envHost, _, envPass := parseMPDHostEnv()
 
     if host == "" {
         host = envHost
     }
 
-    var c *mpd.Client
-    var err error
+    var (
+        c   *mpd.Client
+        err error
+    )
 
     if socket != "" {
         dbg("dial unix %s", socket)
@@ -160,8 +236,7 @@ func dialMPD(host string, port int, socket string, useSocket bool) (*mpd.Client,
     }
 
     return c, nil
-} // cnuf dialMPD
-
+}
 
 /* ---------------- --last parsing ---------------- */
 
@@ -203,21 +278,75 @@ func findLastPlayed(logpath string) (completed, player, file string, err error) 
 
 /* ---------------- tryparsed ---------------- */
 
+//func tryParsedLookup(c *mpd.Client, path string) (map[string]string, error) {
+//  dir := filepath.Base(filepath.Dir(path))
+//  base := filepath.Base(path)
+//
+//  var album, artist, track string
+//
+//  if m := reAlbumDir.FindStringSubmatch(dir); m != nil {
+//    if f := reAlbumFile.FindStringSubmatch(base); f != nil {
+//      album = m[2]
+//      artist = f[1]
+//      track = f[2]
+//    }
+//  } else if f := reFlatFile.FindStringSubmatch(base); f != nil {
+//    artist = f[1]
+//    track = f[2]
+//  }
+//
+//  if artist == "" || track == "" {
+//    return nil, fmt.Errorf("filename not parseable")
+//  }
+//
+//  dbg("tryparsed album=%q artist=%q track=%q", album, artist, track)
+//
+//  var res []mpd.Attrs
+//  var err error
+//
+//  if album != "" {
+//    res, err = c.Search("album", album, "artist", artist, "title", track)
+//    if err == nil && len(res) > 0 {
+//      return map[string]string(res[0]), fmt.Errorf("recovered via tryparsed")
+//    }
+//  }
+//
+//  res, err = c.Search("artist", artist, "title", track)
+//  if err != nil || len(res) == 0 {
+//    return nil, fmt.Errorf("tryparsed search failed")
+//  }
+//
+//  return map[string]string(res[0]), fmt.Errorf("recovered via tryparsed")
+//} // cnuf tryParsedLookup
+
+
+/* ---------------- tryparsed ---------------- */
+
 func tryParsedLookup(c *mpd.Client, path string) (map[string]string, error) {
-  dir := filepath.Base(filepath.Dir(path))
+  dir  := filepath.Base(filepath.Dir(path))
   base := filepath.Base(path)
 
-  var album, artist, track string
+  var album  string
+  var artist string
+  var track  string
 
-  if m := reAlbumDir.FindStringSubmatch(dir); m != nil {
-    if f := reAlbumFile.FindStringSubmatch(base); f != nil {
-      album = m[2]
-      artist = f[1]
-      track = f[2]
+  // Case 1: album directory + album-style filename
+  if dm := reAlbumDir.FindStringSubmatch(dir); dm != nil {
+    album = dm[2] // album only; artist is ignored here by design
+
+    if fm := reAlbumFile.FindStringSubmatch(base); fm != nil {
+      artist = fm[1]
+      track  = fm[2]
     }
-  } else if f := reFlatFile.FindStringSubmatch(base); f != nil {
-    artist = f[1]
-    track = f[2]
+  }
+
+  // Case 2: flat filename (no album info available)
+  if artist == "" || track == "" {
+    if fm := reFlatFile.FindStringSubmatch(base); fm != nil {
+      artist = fm[1]
+      track  = fm[2]
+      album  = ""
+    }
   }
 
   if artist == "" || track == "" {
@@ -229,20 +358,30 @@ func tryParsedLookup(c *mpd.Client, path string) (map[string]string, error) {
   var res []mpd.Attrs
   var err error
 
+  // Prefer album-qualified search when available
   if album != "" {
-    res, err = c.Search("album", album, "artist", artist, "title", track)
+    res, err = c.Search(
+      "album",  album,
+      "artist", artist,
+      "title",  track,
+    )
     if err == nil && len(res) > 0 {
       return map[string]string(res[0]), fmt.Errorf("recovered via tryparsed")
     }
   }
 
-  res, err = c.Search("artist", artist, "title", track)
+  // Fallback: artist + title only
+  res, err = c.Search(
+    "artist", artist,
+    "title",  track,
+  )
   if err != nil || len(res) == 0 {
     return nil, fmt.Errorf("tryparsed search failed")
   }
 
   return map[string]string(res[0]), fmt.Errorf("recovered via tryparsed")
-} // cnuf tryParsedLookup
+}
+
 
 /* ---------------- main ---------------- */
 
@@ -273,52 +412,52 @@ func main() {
 //}
 
 
-	// Custom parsing for --last/--last=/path/to/file.log
-	// `--last /path/to/file.log` is explicitly disallowed
+  // Custom parsing for --last/--last=/path/to/file.log
+  // `--last /path/to/file.log` is explicitly disallowed
 
-	for i := 1; i < len(os.Args); i++ {
-	    arg := os.Args[i]
+  for i := 1; i < len(os.Args); i++ {
+    arg := os.Args[i]
 
-	    if arg == "--last" {
-	        last = true
-	        lastLog = "" // default log path
-	        dbg("last=true (default log)")
-	        os.Args = append(os.Args[:i], os.Args[i+1:]...)
-	        break
-	    }
+    if arg == "--last" {
+      last = true
+      lastLog = defaultLog // default log path
+      dbg("last=true log=%q", lastLog)
+      os.Args = append(os.Args[:i], os.Args[i+1:]...)
+      break
+    }
 
-	    if strings.HasPrefix(arg, "--last=") {
-	        last = true
-	        lastLog = strings.TrimPrefix(arg, "--last=")
-	        dbg("last=true log=%q", lastLog)
-	        os.Args = append(os.Args[:i], os.Args[i+1:]...)
-	        break
-	    }
-	}
+    if strings.HasPrefix(arg, "--last=") {
+      last = true
+      lastLog = strings.TrimPrefix(arg, "--last=")
+      dbg("last=true log=%q", lastLog)
+      os.Args = append(os.Args[:i], os.Args[i+1:]...)
+      break
+    }
+  }
 
 
-	// Custom parsing for --socket/--socket=/path/to/socket
-	// `--socket /path/to/socket` is explicitly disallowed
+  // Custom parsing for --socket/--socket=/path/to/socket
+  // `--socket /path/to/socket` is explicitly disallowed
 
-	for i := 1; i < len(os.Args); i++ {
-	    arg := os.Args[i]
+  for i := 1; i < len(os.Args); i++ {
+    arg := os.Args[i]
 
-	    if arg == "--socket" {
-	        useSocket = true
-	        socket = "" // default socket
-	        dbg("useSocket=true (bare --socket)")
-	        os.Args = append(os.Args[:i], os.Args[i+1:]...)
-	        break
-	    }
+    if arg == "--socket" {
+      useSocket = true
+      socket = "" // default socket
+      dbg("useSocket=true (bare --socket)")
+      os.Args = append(os.Args[:i], os.Args[i+1:]...)
+      break
+    }
 
-	    if strings.HasPrefix(arg, "--socket=") {
-	        useSocket = true
-	        socket = strings.TrimPrefix(arg, "--socket=")
-	        dbg("useSocket=true socket=%q", socket)
-	        os.Args = append(os.Args[:i], os.Args[i+1:]...)
-	        break
-	    }
-	}
+    if strings.HasPrefix(arg, "--socket=") {
+      useSocket = true
+      socket = strings.TrimPrefix(arg, "--socket=")
+      dbg("useSocket=true socket=%q", socket)
+      os.Args = append(os.Args[:i], os.Args[i+1:]...)
+      break
+    }
+  }
 
   flag.StringVar(&host, "host", "", "MPD host")
   flag.IntVar(&port, "port", 6600, "MPD port")
@@ -329,7 +468,7 @@ func main() {
 //  flag.BoolVar(&last, "last", false, "last played")
 
   flag.BoolVar(&tryParsed, "tryparsed", false, "try filename parsing fallback")
-  flag.StringVar(&lastLog, "lastlog", defaultLog, "mpd log path")
+//  flag.StringVar(&lastLog, "lastlog", defaultLog, "mpd log path")
 
   flag.Parse()
 
@@ -340,22 +479,22 @@ func main() {
   hostFromEnv, socketFromEnv, _ := parseMPDHostEnv()
 
   if socket == "" { // CLI didn't override
-      if socketFromEnv != "" {
-          socket = socketFromEnv
-          dbg("using socket from MPD_HOST env: %q", socket)
-      } else {
-          socket = defaultMPDSocket()
-          dbg("using default socket: %q", socket)
-      }
+    if socketFromEnv != "" {
+      socket = socketFromEnv
+      dbg("using socket from MPD_HOST env: %q", socket)
+    } else {
+      socket = defaultMPDSocket()
+      dbg("using default socket: %q", socket)
+    }
   } else {
-      dbg("using CLI socket: %q", socket)
+    dbg("using CLI socket: %q", socket)
   }
 
   if host == "" {
-      host = hostFromEnv
-      if host != "" {
-          dbg("using host from MPD_HOST env: %q", host)
-      }
+    host = hostFromEnv
+    if host != "" {
+      dbg("using host from MPD_HOST env: %q", host)
+    }
   }
 
   // Now dialMPD just uses whatever host/port/socket we have
@@ -377,40 +516,40 @@ func main() {
 
     path := args[0]
 
-		// Determine if path is absolute
-		if filepath.IsAbs(path) {
-		    // Try absolute path first (requires socket)
-        dbg("if filepath.IsABS(path) ListAllInfo called with path=%q", path)
-		    songs, err := c.ListInfo(path)
-		    if err != nil || len(songs) == 0 || songs[0]["file"] == "" {
-		        emitError("absolute path not resolvable, ensure socket access")
-		        os.Exit(1)
-		    }
-		    printSong(map[string]string(songs[0]))
-		    return
-		}
+    // Determine if path is absolute
+    if filepath.IsAbs(path) {
+      // Try absolute path first (requires socket)
+      dbg("if filepath.IsABS(path) ListAllInfo called with path=%q", path)
+      songs, err := c.ListInfo(path)
+      if err != nil || len(songs) == 0 || songs[0]["file"] == "" {
+        emitError("absolute path not resolvable, ensure socket access")
+        os.Exit(1)
+      }
+      printSong(map[string]string(songs[0]))
+      return
+    }
 
-		// Otherwise relative path
+    // Otherwise relative path
     dbg("Otherwise relative path ListAllInfo called with path=%q", path)
-		songs, err := c.ListAllInfo(path)
-		if err != nil || len(songs) == 0 || songs[0]["file"] == "" {
-		    // Optional: commented fallback to prepend defaultLibPrefix
-		    // abs := defaultLibPrefix + "/" + path
-		    // songs, err = c.ListAllInfo(abs)
+    songs, err := c.ListAllInfo(path)
+    if err != nil || len(songs) == 0 || songs[0]["file"] == "" {
+      // Optional: commented fallback to prepend defaultLibPrefix
+      // abs := defaultLibPrefix + "/" + path
+      // songs, err = c.ListAllInfo(abs)
 
-		    if tryParsed {
-		        ps, perr := tryParsedLookup(c, path)
-		        if ps != nil {
-		            emitError(perr.Error())
-		            printSong(ps)
-		            return
-		        }
-		    }
-		    emitError("file not found")
-		    os.Exit(1)
-		}
+      if tryParsed {
+        ps, perr := tryParsedLookup(c, path)
+        if ps != nil {
+          emitError(perr.Error())
+          printSong(ps)
+          return
+        }
+      }
+      emitError("file not found")
+      os.Exit(1)
+    }
 
-		printSong(map[string]string(songs[0]))
+    printSong(map[string]string(songs[0]))
 
     return
   }
@@ -448,6 +587,7 @@ func main() {
   /* ---------- --last ---------- */
 
   if last {
+    dbg("in `if last` lastLog = %q", lastLog)
     _, _, path, err := findLastPlayed(lastLog)
     if err != nil {
       emitError(err.Error())
